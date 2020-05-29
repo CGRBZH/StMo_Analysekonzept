@@ -1,0 +1,81 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup}
+# Import libraries
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+
+# Number formatting
+options(scipen = 1000000)
+options(digits = 6)
+
+dir <- "C:/gitrepos/StMo_Analysekonzept"
+setwd(dir)
+source("C:/gitrepos/StMo_Analysekonzept/function.R")
+
+```
+
+```{r messstationen}
+
+# Replace folder name with current folder
+
+#Messstation 1: Kilchberg (ZH0109), Seestrasse
+mes1 <- "./02-Vergleichsjahr2019_MIV/B290pgj - @109@ - Rohdaten - Kilchberg (ZH0109), Seestrasse (Route Nr.xlsx"
+mes1_richtung1 <- function_richtung(mes1, 1)
+mes1_richtung2 <- function_richtung(mes1, 2)
+mes1_df <- function_rbind(mes1_richtung1, mes1_richtung2)
+
+#Messstation 2: Langnau am Albis (ZH1887), Albisstrasse
+# mes2 <-  "./B290pgj - @1887@ - Rohdaten - Langnau am Albis (ZH1887), Albisstrasse (Route Nr.xlsx"
+# mes2_richtung1 <- function_richtung(mes12, 1)
+# mes2_richtung2 <- function_richtung(mes12, 2)
+# mes2_df <- function_rbind(mes2_richtung1, mes2_richtung2)
+
+```
+
+```{r rbind}
+
+# rbind für alle messstationen
+# mes <- rbind(mes1_df, mes2_df)
+
+```
+
+
+```{r feiertage}
+
+feiertage <- c("01.01.2019", "2.1.2019", "6.1.2019", "6.3.2019", "18.04.2019", "21.4.2019", "22.04.2019", "1.5.2019", "30.05.2019", "9.6.2019", "10.06.2019", "20.6.2019")
+
+holidays <-  as.POSIXct(paste(feiertage, "%d.%m.%Y"), format="%d.%m.%Y")
+
+
+```
+
+```{r formatierung}
+
+# korrekt formatieren
+miv <- mes1_df %>%
+  group_by(Datum, Zeit) %>%
+  summarise(Total = sum(as.integer(Total))) %>%
+  ungroup() %>%
+  transmute('date' = as.POSIXct(paste(Datum, "%d.%m.%Y"), format="%d.%m.%Y"),
+            'month' = strftime(date,'%m'), # month number.And "%B" to get the month string
+            'weekday' = strftime(date,'%A'), # format = "%u" day of the week as numeric (Monday is 1)
+            'time' = stringr::str_extract(Zeit, "\\d{2}"),
+            'flow' = as.integer(Total),
+            'holiday' = case_when(date %in% holidays ~ 1,
+                                  TRUE ~ 0)) %>%
+  drop_na() %>%
+  arrange(date)
+
+write.csv(miv, "miv.csv")
+
+```
+
+
