@@ -8,7 +8,7 @@ function_richtung <- function(path, number) {
   sheets <- path %>% 
     excel_sheets() %>% 
     purrr::set_names() %>%
-    map(read_excel, path = path)
+    purrr::map(read_excel, path = path)
   
   richtung <-sheets[[number]]
   colnames(richtung) = richtung[7, ] # the 8th row will be the header
@@ -22,9 +22,13 @@ function_richtung <- function(path, number) {
   
   # adding direction and station id to data frame
   richtung <- richtung[-c(1, 2, 3, 4, 5, 6, 7),]
+  richtung <- richtung %>%
+    mutate('Messstelle' = subset_zusatzinfo$Messstelle,
+           'Richtung' = subset_zusatzinfo$Richtung,
+           'date' = as.POSIXct(paste(.data$Datum, "%d.%m.%Y"), format="%d.%m.%Y"))
 }
 
 function_rbind <- function(dat1, dat2){
   dat <- rbind(dat1, dat2) %>%
-    select(Datum, Zeit, Total)
+    select(Datum, Zeit, Total, Richtung, Messstelle)
 }

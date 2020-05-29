@@ -1,0 +1,259 @@
+---
+title: "StMo_Analysekonzept_Draft"
+author: "Corinna Grobe"
+date: "2020-05-28"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# libraries 
+#install.packages("tidyverse")
+library(tidyverse)
+library(dplyr) # Version ‘0.8.5’
+library(ggplot2) # Version ‘3.3.0’
+library(readxl)
+library(stringr) # Version '1.4.0'
+
+# set the directory to the directory of the document
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# getwd()
+source("./function.R")
+
+```
+
+# Business Understanding
+
+Die Kurzzeitprognose des Verkehrsaufkommens ist weithin als ein wichtiges Element intelligenter Verkehrssysteme (ITS) anerkannt, da die Genauigkeit der Prognosemethoden bis zu einem gewissen Grad die Leistung der Echtzeit-Verkehrssteuerung und des Verkehrsmanagements bestimmt. Im Rahmen eines beim Tiefbauamt des Kantons Zürich (TBA) laufenden Projekts sollen die Echtzeit-Daten der Verkehrsmessstellen auf Zürcher Kantonsstrassen in naher Zukunft als Open Government Data (OGD) zur freien Nutzung zugänglich gemacht werden. Die Motivation des TBA ist eine die Erstellung von vielfältigen Applikationen, welche wiederum auch dem TBA nutzen können. Die Analyse verschiedener Prognosemethoden soll ein potentieller Grundstein für mögliche nachfolgende Anwendungen sein.
+
+## Ziel
+Ziel ist es, diejenige Verhersagemethode auszuwählen, welche unter Verwendung von historischen Messstellendaten am besten geeignet ist kurzzeitige Prognosen des Verkehrsaufkommens auf Zürcher Kantonsstrassen zu leisten.
+
+## Fragestellung
+Welches ist die am besten geeignete Verkehrsprognose-Methode für kurzzeitige Verkehrsprognosen im Zürcher Kantonsstrassennetz?
+
+## Abgrenzungen
+(1) Vorhersagehorizont: Kurzzeit spiegelt gewöhnlich den Vorhersagehorizont von bis zu ein oder zwei Stunden wider. Es soll das Verkehrsaufkommen (flow) mit Zeithorizont 1 Stunde vorhergesagt werden.
+(2) Umfang der Vorhersage (ein fester Standort, eine Route oder ein ganzes Netzwerk): Zwei feste Messstellen auf Zürcher Kantonsstrassen.
+(3) Umwelt (städtisch oder Autobahn): Kantonsstrassen (ausserstädtisch, aber auch nicht Autobahn)
+(4) Zielvariable: *flow* (Fahrzeuge/Stunde) auch bekannt als *intensity*
+(5) Prädiktoren: Wochentag (Mo-So), Stunde vom Tag (24h), Baustellen, Feiertage und Ferien sowie Niederschlagsmenge
+
+## Schlüsselpersonen & Risiken
+
+### Schlüsselpersonen
+**Dateneigentümerin:** Derzeit sind die Verkehrszähldaten einzig über die Besitzerin der Messtellen, dem Tiefbauamt des Kantons Zürich (TBA), zu beziehen. Die Dateneigentümerin ist somit die erste Schlüsselperson. In Kooperation mit dem beim TBA laufenden Projekt "Verkehr Online" wird die Datenlieferung organisiert.
+
+**Fachexperten:** Aufgrund ihrer Feldexpertise nehmen die Verkehrsdatenerfassung und die Gebietsleitung beim TBA ebenfalls Schlüsselrollen ein. Ihre tiefgreifenden Kenntnisse der Messstationen, der Messstellengebiete sowie der technischen Besonderheiten sind für ein solides Datenverständnis unabdingbar.
+
+### Organisatorische Risiken 
+Es handelt sich um ein amtsübergreifendes Projekt: Die Daten werden vom TBA erhoben. Die Auswertung und Modellierung passiert beim Statistischen Amt des Kantons Zürich (STAT). Eine kollaborativer Zusammenarbeit und kontinuierlicher Austausch sind zwingend nötig.
+
+### Technische Risiken
+**Messung:** Das grösste technische Risiko liegt in der Datenerhebung. Nur möglichst kontinuierlich erfasste Verkehrszähldaten erlauben eine gute Prognose. Technische Unterbrüche, Baustellen oder andere Störungen beeinträchtigen die Datenqualität und damit die Prognosegenauigkeit.
+
+**Skalierbarkeit:** Bei einer Anwendung der Methode auf Echtzeit-Daten wächst die Datenmenge rasch an und erfordert ein Datenmanagement und eine Datenverarbeitung mit Big Data-Verfahren sowie  entsprechende Speicher- und Rechenkapazitäten.
+
+## Erfolgskriterien
+
+### Genauigkeit der Vorhersage
+In der Regel wird die Genauigkeit einer Vorhersage durch eine Statistik gemessen, wobei RMSE (Root Mean Square Error, mittlerer quadratischer Fehler) und MAPE (Mean Absolute Percentage Error, mittlerer absoluter prozentualer Fehler) die am weitesten verbreiteten sind. 
+(1) **RMSE** drückt den erwarteten Wert des Fehlers aus und hat die gleiche Einheit wie die Daten, was die Grösse des "typischen" Fehlers sichtbar macht. 
+(2) **MAPE** hat den Vorteil, dass der Fehler in Prozent ausgedrückt wird, was ihn für die Interpretation verständlicher macht.
+
+### Rechnerischer Aufwand
+Die verwendete Methode soll einen überschaubaren (geringen) rechnerischen Aufwand erfordern und eine einfache Implementation erlauben.
+
+## Zielgruppe
+Die Echtzeit-Daten der Verkehrsmessstellen im Kanton Zürich sollen unter dem Open Goverment Data-Standard frei verfügbar gemacht werden. Die Beurteilung möglicher Prognosemodelle für diese Verkehrszähldaten soll primär **(1) der interessierten OGD-Community** als Grundlage für die Erstellung möglicher Applikationen dienen. Darüber hinaus kann die Arbeit auch **(2) in der Planung von Echtzeit-Verkehrssteuerungssystemen und dem Verkehrsmanagement** dienen.
+
+## Finanzielle, technische und personelle Ressourcen
+<span style="color: red;">Zu ergänzen</span>
+
+# Data Understanding
+
+## Datenverfügbarkeit
+Es stehen die Verkehrszähldaten von 15 MIV-Messtellen im Grossraum Zürichsee für den Zeitraum 1.1.-30.6.2020 sowie die Vorjahresperiode zur Verfügung. Gemessen wird das Total an Fahrzeugen in 15-Minuten-Intervallen. In jedem Zeitintervall werden die gezählten Fahrzeuge zusätzlich in zehn Fahrzeugkategorien (gem. SIWSS10) klassifiziert. Ausserdem liegen Angaben zur Fahrtrichtung sowie bei mehrspurigen Strassen zur Spur vor. Keine Angaben liegen vor zur Geschwindigkeit.
+
+Informationen zu den Prädiktoren, Wochentag, Stunde vom Tag, Feiertag / Ferien sowie Baustellen oder andere Unterbrüche, werden entweder mit den Verkehrszähldaten geliefert oder lassen sich anhand dieser ergänzen.
+
+Für die Niederschlagsmenge kann auf einen OGD-Datensatz von MeteoSchweiz zurückgegriffen werden, welcher für die Messstation SMA Zürich Fluntern die Stundensumme für den Niederschlag ausweist.
+
+Somit ist ein ausreichende Datengrundlage gegeben, um verschiedene Modell zu erstellen und zu testen. 
+
+## Quantitative und qualitative Aspekte
+<span style="color: red;">Zu ergänzen</span>
+
+## Rechtliches & Finanzielles
+Es handelt sich um frei verfügbare, nicht personenbezogen Daten. Aspekte des Datenschutzes sind somit nicht relevant, ebensowenig müssen keine kostenpflichtigen Daten hinzugekauft werden.
+
+# Data Preparation
+
+## Missing Values
+Fehlende Werte können verschiedene Ursachen haben: Baustellen, technische Störungen und Unterbrüche.
+
+Sofern für die Messstelle ausreichend Messpunkte vorliegen, werden fehlende Werte mit dem Median des Stunden-Intervalls an diesem Wochentag ersetzt.
+
+## Ausreisser
+Besonders tiefe oder hohe Werte, die nur einmalig oder kurzzeitig vorkommen, lassen sich im Idealfall aufgrund von Baustellen oder technischen Störungen erklären. Solche erklärbaren Ausreisser werden wie Missing Values behandelt und mit dem Median des 15-Minuten-Intervalls an diesem Wochentag ersetzt.
+
+<span style="color: red;">--> Frage: Was ist die Empfehlung für den Umgang mit erklärbaren Ausreissern (Baustellen oder techn. Störungen)? 1) Ersetzen mit Median, 2) unverändert belassen, oder 3) nur Messstellen mit kontinuierlichen Messungen ins Modell aufnehmen?<br><br>
+Wenn 2), wie ist die Empfehlung diese im Modell zu berücksichtigen?</span>
+
+## Saisonalität
+Saisonalität entsteht zum einen, als dass es jährlich wiederkehrende Ereignisse wie Feiertage und Ferien gibt.Zum anderen durch die Wochentage: Wochenende weichen unter Umständen deutlich vom Muster der Arbeitstage ab. Diese Formen der saisonalen Muster müssen im Modell berücksichtigt werden.
+
+<span style="color: red;">--> Frage: Welches Modell ist zur Berücksichtigung von Saisonalitäten speziell geeignet?</span>
+
+## Variablen: Standardisierung, Transformation, Aggregation und Selektion
+**Messstation:** Name und Nummer der Messstation.
+
+**Datum:** Das Datum wird als `as.POSIXct` im Format `"%Y-%m-%d %H:%M:%S"` gespeichert.
+
+**Monat**: Der Monat als eigene Variable, um den Einfluss von einer Saisonalität, z.B. durch Ferien, nachverfolgen zu können.
+
+**Wochentag:** Der Wochentag wird dem Datensatz als neue Variable hinzugefügt und aus dem Datum extrahiert: Konvertierung von Datum in `as.POSIXlt`. Dabei ist Montag als erster Tag der Woche definiert.
+
+**Stunde:** Die Messswerte sind als Stundensummen angegeben.
+
+**Total Fahrzeuge:** Die Messswerte sind in der Variable `flow`als Stundensumme angegeben. Eine Unterschiedung in Fahrzeugkategorien ist nicht notwendig und der Datensatz wird um  die 10 Variablen zur Fahrzeugkategorie reduziert. Bei mehrspurigen Strassen werden die Spuren, die in die gleiche Richtung führen, kumuliert.
+
+<span style="color: red;">--> Frage: Sinnvoll?</span>
+
+**Fahrtrichtung:** Die jeweilige Fahrtrichtung wird als eigene Variable im Datensatz aufgenommen.
+
+**Feiertag/Ferien:** Eine binär mit `1` für Ja / `2` für Nein kodierte Variable, welche dem Datensatz hinzugefügt wird.
+
+**Baustelle:** Eine binär mit `Ja`/ `Nein` kodierte Variable, welche dem Datensatz hinzugefügt wird.
+
+**Niederschlagsmenge:** Wird als Menge in mm/h im Datensatz hinzugefügt. 
+
+<span style="color: red;">--> Frage: Komplexität des Modells reduzieren und Niederschlag weglassen?</span>
+
+
+```{r messstationen, echo = FALSE, include=FALSE}
+
+# Replace folder name with current folder
+
+#Messstation 1: Kilchberg (ZH0109), Seestrasse
+mes1 <- "./02-Vergleichsjahr2019_MIV/B290pgj - @109@ - Rohdaten - Kilchberg (ZH0109), Seestrasse (Route Nr.xlsx"
+mes1_richtung1 <- function_richtung(mes1, 1)
+mes1_richtung2 <- function_richtung(mes1, 2)
+mes1_df <- function_rbind(mes1_richtung1, mes1_richtung2)
+
+#Messstation 2: Langnau am Albis (ZH1887), Albisstrasse
+# mes2 <-  "./B290pgj - @1887@ - Rohdaten - Langnau am Albis (ZH1887), Albisstrasse (Route Nr.xlsx"
+# mes2_richtung1 <- function_richtung(mes12, 1)
+# mes2_richtung2 <- function_richtung(mes12, 2)
+# mes2_df <- function_rbind(mes2_richtung1, mes2_richtung2)
+
+```
+
+```{r rbind, echo = FALSE, include=FALSE}
+
+# rbind für alle messstationen
+# mes <- rbind(mes1_df, mes2_df)
+
+```
+
+
+```{r feiertage, echo = FALSE, include=FALSE}
+
+feiertage <- c("01.01.2019", "2.1.2019", "6.1.2019", "6.3.2019", "18.04.2019", "21.4.2019", "22.04.2019", "1.5.2019", "30.05.2019", "9.6.2019", "10.06.2019", "20.6.2019")
+
+holidays <-  as.POSIXct(paste(feiertage, "%d.%m.%Y"), format="%d.%m.%Y")
+
+
+```
+
+```{r formatierung, echo = FALSE, include=FALSE}
+
+# korrekt formatieren
+miv <- mes1_df %>%
+  transmute('station' = Messstelle,
+            'date' = as.POSIXct(paste(Datum, "%d.%m.%Y"), format="%d.%m.%Y"),
+            'month' = as.numeric(strftime(date,'%m')), # month number.And "%B" to get the month string
+            'weekday' = strftime(date,'%A'), # format = "%u" day of the week as numeric (Monday is 1)
+            'hour' = as.numeric(stringr::str_extract(Zeit, "\\d{2}")),
+            'flow' = as.numeric(Total),
+            'direction' = Richtung,
+            'holiday' = case_when(date %in% holidays ~ 1,
+                                  TRUE ~ 0)) %>%
+  drop_na() %>%
+  arrange(date)
+
+write.csv(miv, "miv.csv")
+
+```
+
+```{r echo=FALSE}
+miv
+```
+
+
+```{r echo = FALSE, include=FALSE}
+# install.packages("viridis")
+library(viridis)
+
+plot_miv <- miv %>%
+  group_by(date, weekday, direction) %>%
+  summarise(total = sum(flow)) %>%
+  ggplot(aes(x = date, y = total, color = direction, group = direction)) +
+  # geom_point() +
+  geom_path(aes(group = direction)) +
+  facet_grid(rows = vars(weekday)) +
+  scale_color_viridis_d() +
+  labs(x = NULL,
+       y = "Anzahl Fahrzeuge",
+       title = "Verkersaufkommen, Tageswerte, Kilchberg (ZH0109)",
+       color = NULL) +
+  theme(legend.position = "top") +
+  theme_bw()
+
+```
+
+```{r echo=FALSE}
+
+plot_miv
+
+```
+
+
+# Modelling
+
+
+## Analytische Verfahren anwenden
+
+## Prognose
+
+## Plots
+
+# Evaluation
+
+## Modellgüte (Residuenanalyse, Validierung)
+
+## Geeingnetheit des Modells zur Beantwortung der Fragestellung
+
+# Deployment
+
+## Kommunikation der Resultate
+
+## Automatisierungsprozess u.ä.
+
+## CI/CD-Prozesse
+- Monitoring
+- Unterhalt
+
+# Literatur
+- Ma, Minghui et al. *Short-term traffic flow prediction using a self-adaptive two-dimensional forecasting method.* Advances in Mechanical Engineering. 2017, Vol. 9(8), pp. 1–12.
+- Salotti, Julien et al. *Comparison of traffic forecasting methods in urban and suburban context.* International conference on tools with artifical intelligence (ICTAI). Nov 2018, Volos, Greece, pp. 846-853
+- Hinsbergen, C & Lint, J.W.C. & Sanders, F. *Short Term Traffic Prediction Models*. 14th World Congress on Intelligent Transport Systems, ITS. 2007. Vol. 7.
+- 
