@@ -13,7 +13,11 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.width = 9,
+                      fig.height = 6)
 
 # libraries 
 #install.packages("tidyverse")
@@ -206,9 +210,10 @@ library(viridis)
 plot_miv <- miv %>%
   group_by(date, weekday, direction) %>%
   summarise(total = sum(flow)) %>%
-  ggplot(aes(x = date, y = total, color = direction, group = direction)) +
+  ggplot(aes(x = as.Date(date), y = total, color = direction, group = direction)) +
   # geom_point() +
   geom_path(aes(group = direction)) +
+  scale_x_date(date_labels = "%a\n%d. %m", date_breaks = "2 weeks") +
   facet_grid(rows = vars(weekday)) +
   scale_color_viridis_d() +
   labs(x = NULL,
@@ -225,10 +230,21 @@ plot_miv <- miv %>%
 plot_miv
 
 ```
-
+Alle sichtbaren "Einbrüche" können Feiertagen, wie Ostern, 1. Mai oder Pfingsten, zugeordnet werden.
 
 # Modelling
 
+**Modellselektion**
+
+Es gibt umfassend Lektüre zu den verschiedenen Modellen zur Verkehrsprognose. Die Herausforderung besteht darin, die gewählten Methoden in der Praxis anzuwenden. 
+
+1. Linear Regression: Modellierung basiert auf den Beobachtungen und einem Fehlerterm. Das Modellieren mit Zeitreihen bedingt, dass der Prozess stationär ist, d.h. Saisonalität muss mit modelliert werden. 
+
+*formula: (flow ~ month + weekday + hour + holiday)*
+
+Obwohl das Modell simpel ist, hat sich gezeigt, dass das Modell schnell recht gute Resultate liefern kann.
+
+2. Locally Weighted Regression: Der Vorteil nicht-parametrischer Modelle ist, dass sie den dynamischen, nicht-linearen Prozess im Verkehr besser modellieren können.
 
 ## Analytische Verfahren anwenden
 
