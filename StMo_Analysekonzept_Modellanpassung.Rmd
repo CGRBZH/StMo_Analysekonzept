@@ -1,0 +1,504 @@
+---
+title: "StMo Analysekonzept"
+subtitle: "Verkehszähldaten Kanton Zürich"
+author: "Autor: Corinna Grobe"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    number_sections: true
+    fig_width: 8
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, messages = FALSE, warning = FALSE)
+
+
+
+```
+
+# Libraries
+
+```{r libraries, echo = TRUE, eval = TRUE, message = FALSE}
+# session info
+# -- R version 3.6.3 (2020-02-29)
+
+# libraries
+library(dplyr) # Version ‘0.8.5’
+library(ggplot2) # Version '3.3.0'
+# library(stringr) # Version '1.4.0'
+library(gam) # Version '1.16.1'
+library(MASS) # Version '7.3-51.5'
+library(DHARMa) # Version '0.3.1'
+# DHARMa vignette: https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
+library(AER) # Version '1.2-9'
+library(statR) # Version ‘0.0.0.9000’
+
+```
+
+# Data import
+```{r, echo = TRUE, eval = TRUE, message = FALSE}
+# Data set for 2019
+miv_2019 <- readr::read_csv("./miv.csv")
+
+# Data set for 2020
+miv_2020 <- readr::read_csv("./Mobility_VerkehrsmessstellenKantonZH.csv")
+
+```
+
+# Data preparation
+
+## Daily values for 2019
+
+```{r, echo = FALSE}
+miv_train_day <- miv_2019 %>%
+  group_by(date) %>%
+  
+  # Calculate response variable daily sum of flow
+  summarise(flow_daysum = sum(flow)) %>%
+  ungroup() %>%
+  
+  # Adding explanatory variables month, weekday, holiday and schoolholiday
+  mutate(month = as.numeric(strftime(date, "%m")),
+         weekday = strftime(date,'%A'),
+         weekday_num = as.numeric(strftime(date,'%u')),
+         holiday = case_when(date == "2019-01-01" ~ 1,
+                             date == "2019-01-02" ~ 1,
+                             date == "2019-04-19" ~ 1,
+                             date == "2019-04-22" ~ 1,
+                             date == "2019-05-01" ~ 1,
+                             date == "2019-05-30" ~ 1, 
+                             date == "2019-06-10" ~ 1,
+                             TRUE ~ 0),
+         schoolholiday = case_when(date >= "2019-01-01" & date <= "2019-01-05" ~ 1,
+                                   date >= "2019-04-22" & date <= "2019-05-04" ~ 1,
+                                   date >= "2019-02-09" & date <= "2019-02-24" ~ 1, 
+                                    TRUE ~ 0),
+         sqrt_flow = as.integer(sqrt(flow_daysum))) %>%
+  dplyr::select(date, weekday, weekday_num, month, flow_daysum, sqrt_flow, holiday, schoolholiday)
+
+```
+
+```{r, echo = TRUE}
+head(miv_train_day)
+```
+
+## Daily values for 2020
+
+```{r, echo = FALSE}
+miv_test <-  miv_2020 %>%
+  filter(variable_short == "total_ZH0109" & date <= "2020-02-29") %>%
+  dplyr::select(date, value) %>%
+  
+  # Response variable daily sum of flow
+  rename(flow_daysum = value) %>%
+  
+  # Adding explanatory variables month, weekday, holiday and schoolholiday
+  mutate(month = as.numeric(strftime(date, "%m")),
+         weekday = strftime(date,'%A'),
+         weekday_num = as.numeric(strftime(date,'%u')),
+         holiday = case_when(date == "2020-01-01" ~ 1,
+                             date == "2020-01-02" ~ 1,
+                             TRUE ~ 0),
+         schoolholiday = case_when(date >= "2020-01-01" & date <= "2020-01-04" ~ 1,
+                                   date >= "2020-02-08" & date <= "2020-02-23" ~ 1,
+                                    TRUE ~ 0),
+         sqrt_flow = as.integer(sqrt(flow_daysum))) %>%
+  dplyr::select(date, weekday, weekday_num, month, flow_daysum, sqrt_flow, holiday, schoolholiday)
+
+```
+
+```{r}
+head(miv_test)
+```
+
+# Plot measured data
+
+## Daily values of flow for 2019
+
+```{r, include = FALSE, echo = FALSE}
+
+holiday_2019 <- miv_train_day %>% filter(holiday == 1)
+
+xmin <- as.Date(c("2019-01-01", "2019-02-09", "2019-04-22"))
+xmax <- as.Date(c("2019-01-05", "2019-02-24", "2019-05-04"))
+ymin <- c(-Inf, -Inf, -Inf)
+ymax <- c(Inf, Inf, Inf)
+
+schoolholiday_2019 <- data.frame(xmin, xmax, ymin, ymax)
+
+```
+
+```{r,echo=FALSE}
+
+ggplot(miv_train_day, aes(date, flow_daysum)) +   
+  geom_rect(data=schoolholiday_2019, inherit.aes=FALSE,
+            aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax), fill = "lightgreen", alpha=0.6) +
+  geom_line() +
+  geom_point(holiday_2019, mapping = aes(x = date, y = flow_daysum), color = "red") +
+  theme_stat() +
+  labs(title = "Verkehrsaufkommen 2019",
+       subtitle = "Messstelle Nr. 109, Tageswerte, Jan-Jun. 2019",
+       caption = "Rote Punkte = Feiertage, Grün = Schulferien",
+       y = "Anzahl Fahrzeuge",
+       x = NULL)
+
+```
+
+## Daily values of flow for 2020
+
+```{r, include = FALSE, echo = FALSE}
+
+holiday_2020 <- miv_test %>% filter(holiday == 1)
+
+xmin_20 <- as.Date(c("2020-01-01", "2020-02-08"))
+xmax_20 <- as.Date(c("2020-01-04", "2020-02-23"))
+ymin_20 <- c(-Inf, -Inf)
+ymax_20 <- c(Inf, Inf)
+
+schoolholiday_20 <- data.frame(xmin_20, xmax_20, ymin_20, ymax_20)
+
+```
+
+```{r, echo = FALSE}
+
+ggplot(miv_test, aes(date, flow_daysum)) +  
+  geom_rect(data = schoolholiday_20, inherit.aes = FALSE, mapping = aes(xmin=xmin_20,xmax=xmax_20,ymin=ymin_20,ymax=ymax_20), 
+            fill = "lightgreen", 
+            alpha = 0.6) +
+  geom_line() +
+  geom_point(holiday_2020, mapping = aes(x = date, y = flow_daysum), color = "red") +
+  theme_stat() +
+  labs(title = "Verkehrsaufkommen 2020",
+       subtitle = "Messstelle Nr. 109, Tageswerte, Jan-Feb. 2020",
+       caption = "Rote Punkte = Feiertage, Grün = Schulferien",
+       y = "Anzahl Fahrzeuge",
+       x = NULL)
+
+```
+
+# Graphical Analysis
+
+## Density plot – Check if the response variable is close to normal
+
+Skewness = -061 -> Negative- or left-skewed distribution
+Flow data is negatively skewed: We see a large share of relatively high values, but also abou t one third of time intervals with smaller numbers of vehicles per day. Surprisingly no zeros.
+
+With count data that follows a Poisson distribution, a square root transformation is recommended. In this case, the square root transformation does not result in an improvement on teh distribution. For the model fitting, we will go with the original floa data.
+
+```{r, echo = FALSE}
+par(mfrow=c(1,2))
+plot(density(miv_train_day$flow_daysum), main="Density Plot: Flow", ylab="Frequency", sub=paste("Skewness:", round(moments::skewness(miv_train_day$flow_daysum), 2)))
+polygon(density(miv_train_day$flow_daysum), col="#DC143C")
+
+plot(density(miv_train_day$sqrt_flow), main="Density Plot: Sqrt Flow", ylab="Frequency", sub=paste("Skewness:", round(moments::skewness(miv_train_day$sqrt_flow), 2)))
+polygon(density(miv_train_day$sqrt_flow), col="#DC143C")
+```
+
+## BoxPlot – Check for outliers
+
+The square root transformation does not distribute the flow values more evenly. The original data is more evenly distributed - outliers primarily in the lower end of the value range.
+
+```{r, echo = FALSE}
+par(mfrow=c(1,2))
+boxplot(miv_train_day$flow_daysum, main="Flow", sub=paste("Outlier rows: ", boxplot.stats(miv_train_day$flow_daysum)$out))
+boxplot(miv_train_day$sqrt_flow, main="Sqrt Flow", sub=paste("Outlier rows: ", boxplot.stats(miv_train_day$sqrt_flow)$out)) 
+```
+
+## Correlation
+
+Correlation is a statistical measure that suggests the level of linear dependence between two variables, that occur in pair. It can take values between -1 and +1. A value closer to 0 suggests a weak relationship between the variables. 
+A low correlation (-0.2 < x < 0.2) suggests that much of variation of the response variable is unexplained by the predictor, in which case, we should probably look for a better predictor.
+
+According to correlation, most variation of the `flow_daysum` variable is explained by the predictor `weekyday_num`. But we see that there is at least some sort of relationship with all explanatory variables.
+
+```{r, echo = FALSE, include=FALSE}
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+
+miv_train_day.corr <- cor(miv_train_day[3:8])
+
+```
+
+```{r, echo=FALSE}
+corrplot::corrplot(miv_train_day.corr, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", # Add coefficient of correlation
+         tl.col="black", tl.srt=45, #Text label color and rotation
+         # hide correlation coefficient on the principal diagonal
+         diag=FALSE )
+```
+
+# Build Linear Model
+
+As the correlation matrix suggests all explenatory variables do have an influence on the response variable, the linear model will include all variables.
+
+```{r}
+linearMod <- lm(flow_daysum ~ month +  weekday + holiday + schoolholiday, data=miv_train_day)
+```
+
+## Results
+
++ p Value: The model p-Value and almost all the p-Values of individual predictor variables (besides some weekdays)  are smaller then 0.05. We can conclude that our model is indeed statistically significant. There exists a relationship between the independent variable in question and most of the dependent variables.
+
++ Adj. R-squared: 0.8872 -> ~88% of variation in the response variable has been explained by this model. 
+
++ Accuracy: Besides looking at the adj. R-squared for efficiency of the model, it's a better practice to look at the AIC and prediction accuracy on validation sample for an accuracy measure. 
+
++ Goodness-of-fit (AIC): `AIC(linearMod)` => 3005.332. Rule of thumb: the lower the better.
+
+```{r, echo = FALSE}
+
+summary(linearMod) # model summary
+
+```
+
+# GLM Model
+
+## Poisson
+```{r}
+poissonMod <- glm(flow_daysum ~ month +  weekday + holiday + schoolholiday, family="poisson", data = miv_train_day)
+```
+
+```{r, echo = FALSE}
+summary(poissonMod)
+```
+
+### Results
+
++ Checking for overdispersion: residual deviance is 12289 for 171 degrees of freedom.
+
++ The ratio of deviance to df should be around 1, here it's 71.86, indicating overdispersion.
+
+### Explanation
+A common reason for overdispersion is a misspecified model, meaning the assumptions of the model are not met, hence we cannot trust its output (e.g. p-Values). When overdispersion is detected, one should therefore first search for problems in the model specification (e.g. by plotting residuals against predictors), and only if this doesn’t lead to success, overdispersion corrections such as changes in the distribution should be applied.
+
+### Plotting the residuals
+
+We see various signals of overdispersion:
+
++ QQ: s-shaped QQ plot, distribution and dispersion test are signficant
+
++ Residual vs. predicted: Quantile fits are spread out too far.  We get more residuals around 0 and 1, which means that more residuals are in the tail of distribution than would be expected under the fitted model.
+
+
+```{r, echo = FALSE}
+### Plotting the residuals
+simulationPoissonMod <- DHARMa::simulateResiduals(fittedModel = poissonMod, plot = T)
+```
+
+### Action
+
+We need to adjust for overdispersion.
+
+## Adjusting for overdispersion
+
+### Quasi Poisson
+
+The quasi-families augment the normal families by adding a dispersion parameter.
+
++ Dispersion parameter is estimated at 70.96 - a value similar to those in the overdispersion tests above.
++ Main effect are substantially larger standard errors, but an unchanged significance.
++ Note: because this is no maximum likelihood method no AIC available and no overdispersion tests can be conducted.
+
+```{r, echo=FALSE}
+
+quasipoissonMod <- glm(flow_daysum ~ month +  weekday + holiday + schoolholiday, 
+                       family="quasipoisson", 
+                       data = miv_train_day)
+
+summary(quasipoissonMod)
+
+```
+
+### Step approach
+
+```{r, echo=FALSE}
+step(poissonMod, scope = list(lower = ~ ., 
+                              upper = ~ month + weekday + holiday + schoolholiday))
+```
+
+### Changed distribution: Negative Binomial
+
+Negative binomial includes a dispersion parameter.
+
+Already here we see that the ratio of deviance and df is near 1 (1.062164) and hence probably fine.
+
+```{r}
+nbMod <- glm.nb(flow_daysum ~ month +  weekday + holiday + schoolholiday, data = miv_train_day)
+summary(nbMod)
+```
+
+#### Checking with Residual Plots
+
+Dispersion test is still significant -> still overdispersion.
+
+```{r, echo=FALSE}
+
+simulationNBMod <- simulateResiduals(nbMod, refit=T, n=250)
+plot(simulationNBMod)
+testDispersion(simulationNBMod) # Dispersion test is still significant -> still overdispersion
+
+```
+
+# GAM
+
+## GAM with all predictive variables
+
+```{r}
+gamMod <- mgcv::gam(flow_daysum ~ month +  weekday + holiday + schoolholiday, data = miv_train_day, method = "REML")
+```
+
+### Summary
+
++ R-sq.(adj) =  0.887
++ Predictor significance unchanged to the linear model.
+
+```{r, echo=FALSE}
+summary(gamMod)
+
+```
+
+### Checking the residual plots
+
++ The longtail effect in the residuals is clearly visible. Otherwise the residuals are well distributed.
++ The residual plots have a some rise-and-fall pattern – clearly there is some dependence structure (it has something to do with intra-annual, inter-daily and inter-weekly fluctuations). 
++ Let’s introduce a cyclical smoother for time variables.
+
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+mgcv::gam.check(gamMod)
+```
+
+## Introducing a cyclical smooth term for month
+
+```{r}
+gamMod_cs <- mgcv::gam(flow_daysum ~ s(month, bs = 'cc', k = 6) + weekday + holiday + schoolholiday, data = miv_train_day, method = "REML")
+```
+
+### Summary
+
++ Significance hasn't changed compared to teh linear model and GAM.
++ R-sq.(adj) =  0.778 
+
+```{r, echo=FALSE}
+summary(gamMod_cs)
+```
+
+### Let’s look at the fitted smooth term:
+
++ Looking at the smooth term, we can see that the monthly smoother is picking up that monthly rise and fall of flow.
+
++ Looking at the relative magnitudes (i.e. monthly fluctuation vs. long-term trend), we can see how important it is to disintangle the components of the time series. 
+
+```{r, echo=FALSE}
+plot(gamMod_cs)
+```
+
+### Let’s see what the model diagnostics look now:
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+mgcv::gam.check(gamMod_cs)
+```
+
+## Cyclical smooth terms for all time components
+
+```{r}
+gamMod_3 <- mgcv::gam(flow_daysum ~ s(month, bs = 'cc', k = 6) + s(weekday_num, bs = 'cc', k = 7) + holiday + schoolholiday, data = miv_train_day)
+```
+
+```{r, echo=FALSE}
+summary(gamMod_3)
+```
+
+### Let’s look at the fitted smooth terms:
+
+The cyclical smoother for weekday is picking up the rise and fall of flow over the week.
+
+```{r, echo=FALSE}
+par(mfrow = c(1,2))
+plot(gamMod_3)
+```
+
+### Let’s see what the model diagnostics look now:
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+mgcv::gam.check(gamMod_3)
+```
+
+# AIC - Goodness-of-fit
+Compare the actual fit of all models:
+
++ The linear model and the gamMod are showing the best fit.
+
+```{r, echo=FALSE}
+AIC(linearMod, poissonMod, nbMod, gamMod, gamMod_cs, gamMod_3)
+```
+
+# Prediction
+
+## Prediction on the existing data set miv_train_day
+
+```{r}
+miv_pred_0 <- data.frame(time = miv_train_day$date,
+                       flow = miv_train_day$flow_daysum,
+                       predicted_values_0 = predict(linearMod, newdata = miv_train_day))
+```
+
+```{r, echo=FALSE}
+ggplot(miv_pred_0, aes(x = time)) +
+  geom_line(aes(y = flow), alpha = 0.5, colour = "black") + 
+  geom_line(aes(y = predicted_values_0), colour = "red") +
+  theme_stat() +
+  labs(title = "Vorhersage mit linearMod2",
+       subtitle = "Schwarze Linie = Messwerte, Rote Linie = Vorhersage",
+       x = NULL,
+       y = "Anzahl Fahrzeuge")
+```
+
+## Prediction on the test data set miv_test
+
+### For the linear Model
+
+```{r}
+miv_pred <- data.frame(time = miv_test$date,
+                       flow = miv_test$flow_daysum,
+                       predicted_values = predict(linearMod, newdata = miv_test, interval = "confidence"))
+```
+
+```{r, echo=FALSE}
+ggplot(miv_pred, aes(x = time)) +
+  geom_line(aes(y = flow), alpha = 0.5, colour = "black") + 
+  geom_line(aes(y = predicted_values.fit), colour = "blue") +
+  geom_line(aes(y = predicted_values.lwr), colour = "red", linetype = "dotted") +
+  geom_line(aes(y = predicted_values.upr), colour = "red", linetype = "dotted") +
+  theme_stat() +
+  labs(title = "Vorhersage mit linearMod2",
+       subtitle = "Schwarze Linie = Messwerte, Blaue Linie = Vorhersage, Rote = Vertrauensintervall",
+       x = NULL,
+       y = "Anzahl Fahrzeuge")
+```
+
+### For the GAM
+
+```{r}
+miv_pred_2 <- data.frame(time = miv_test$date,
+                       flow = miv_test$flow_daysum,
+                       predicted_values_2 = predict(gamMod, newdata = miv_test))
+```
+
+```{r, echo=FALSE}
+ggplot(miv_pred_2, aes(x = time)) +
+  geom_line(aes(y = flow), alpha = 0.5, color = "black") + 
+  geom_line(aes(y = predicted_values_2), colour = "red") +
+  theme_stat() +
+  labs(title = "Vorhersage mit gamMod",
+       subtitle = "Schwarze Linie = Messwerte, Rote Linie = Vorhersage",
+       x = NULL,
+       y = "Anzahl Fahrzeuge")
+```
+
