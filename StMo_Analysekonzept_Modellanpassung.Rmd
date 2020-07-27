@@ -1,5 +1,5 @@
 ---
-title: "StMo Analysekonzept"
+title: "StMo Analysekonzept - Modellanpassung"
 subtitle: "Verkehszähldaten Kanton Zürich"
 author: "Autor: Corinna Grobe"
 output:
@@ -15,9 +15,9 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, messages = FALSE, warning = FALSE)
-
-
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE)
 
 ```
 
@@ -25,7 +25,7 @@ knitr::opts_chunk$set(echo = TRUE, messages = FALSE, warning = FALSE)
 
 ```{r libraries, echo = TRUE, eval = TRUE, message = FALSE}
 # session info
-# -- R version 3.6.3 (2020-02-29)
+# -- R version 4.0.2 (2020-06-22)
 
 # libraries
 library(dplyr) # Version ‘0.8.5’
@@ -35,8 +35,10 @@ library(gam) # Version '1.16.1'
 library(MASS) # Version '7.3-51.5'
 library(DHARMa) # Version '0.3.1'
 # DHARMa vignette: https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
-library(AER) # Version '1.2-9'
+# library(AER) # Version '1.2-9'
 library(statR) # Version ‘0.0.0.9000’
+library(MLmetrics) # Version ‘1.1.1’
+
 
 ```
 
@@ -399,7 +401,7 @@ summary(gamMod_cs)
 plot(gamMod_cs)
 ```
 
-### Let’s see what the model diagnostics look now:
+### Let’s see what the model diagnostics look like now:
 ```{r, echo=FALSE}
 par(mfrow = c(2,2))
 mgcv::gam.check(gamMod_cs)
@@ -408,7 +410,7 @@ mgcv::gam.check(gamMod_cs)
 ## Cyclical smooth terms for all time components
 
 ```{r}
-gamMod_3 <- mgcv::gam(flow_daysum ~ s(month, bs = 'cc', k = 6) + s(weekday_num, bs = 'cc', k = 7) + holiday + schoolholiday, data = miv_train_day)
+gamMod_3 <- mgcv::gam(flow_daysum ~ s(month, bs = 'cc', k = 6) + s(weekday_num, bs = 'cc', k = 7) + holiday + schoolholiday, data = miv_train_day, method = "REML")
 ```
 
 ```{r, echo=FALSE}
@@ -424,7 +426,7 @@ par(mfrow = c(1,2))
 plot(gamMod_3)
 ```
 
-### Let’s see what the model diagnostics look now:
+### Let’s see what the model diagnostics look like:
 ```{r, echo=FALSE}
 par(mfrow = c(2,2))
 mgcv::gam.check(gamMod_3)
@@ -502,3 +504,25 @@ ggplot(miv_pred_2, aes(x = time)) +
        y = "Anzahl Fahrzeuge")
 ```
 
+# MAPE
+
+### For the linear Model
+
+The mean absolute percent error (MAPE) of the linear regression model is 0.045 (4.5%) - a very good value.
+
+
+```{r}
+
+MAPE(y_pred = miv_pred$predicted_values.fit, y_true = miv_test$flow_daysum)
+
+```
+
+
+### For the GAM
+
+```{r}
+library(MLmetrics)
+
+MAPE(y_pred = miv_pred_2$predicted_values_2, y_true = miv_test$flow_daysum)
+
+```
