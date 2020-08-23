@@ -1,5 +1,5 @@
 ---
-title: "StMo Analysekonzept - Modellanpassung"
+title: "StMo Analysekonzept"
 subtitle: "Verkehszähldaten Kanton Zürich"
 author: "Autor: Corinna Grobe"
 output:
@@ -15,9 +15,9 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE,
-                      warning = FALSE,
-                      message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, messages = FALSE, warning = FALSE)
+
+
 
 ```
 
@@ -25,7 +25,7 @@ knitr::opts_chunk$set(echo = FALSE,
 
 ```{r libraries, echo = TRUE, eval = TRUE, message = FALSE}
 # session info
-# -- R version 4.0.2 (2020-06-22)
+# -- R version 3.6.3 (2020-02-29)
 
 # libraries
 library(dplyr) # Version ‘0.8.5’
@@ -35,10 +35,8 @@ library(gam) # Version '1.16.1'
 library(MASS) # Version '7.3-51.5'
 library(DHARMa) # Version '0.3.1'
 # DHARMa vignette: https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
-# library(AER) # Version '1.2-9'
-library(statR) # Version ‘0.0.0.9000’
-library(MLmetrics) # Version ‘1.1.1’
-
+library(AER) # Version '1.2-9'
+# library(statR) # Version ‘0.0.0.9000’
 
 ```
 
@@ -65,8 +63,9 @@ miv_train_day <- miv_2019 %>%
   ungroup() %>%
   
   # Adding explanatory variables month, weekday, holiday and schoolholiday
-  mutate(month = as.numeric(strftime(date, "%m")),
-         weekday = strftime(date,'%A'),
+  mutate(time_id = row_number(),
+         month = as.numeric(strftime(date, "%m")),
+         weekday = factor(strftime(date,'%A')),
          weekday_num = as.numeric(strftime(date,'%u')),
          holiday = case_when(date == "2019-01-01" ~ 1,
                              date == "2019-01-02" ~ 1,
@@ -81,7 +80,7 @@ miv_train_day <- miv_2019 %>%
                                    date >= "2019-02-09" & date <= "2019-02-24" ~ 1, 
                                     TRUE ~ 0),
          sqrt_flow = as.integer(sqrt(flow_daysum))) %>%
-  dplyr::select(date, weekday, weekday_num, month, flow_daysum, sqrt_flow, holiday, schoolholiday)
+  dplyr::select(time_id, date, weekday, weekday_num, month, flow_daysum, sqrt_flow, holiday, schoolholiday)
 
 ```
 
@@ -100,8 +99,9 @@ miv_test <-  miv_2020 %>%
   rename(flow_daysum = value) %>%
   
   # Adding explanatory variables month, weekday, holiday and schoolholiday
-  mutate(month = as.numeric(strftime(date, "%m")),
-         weekday = strftime(date,'%A'),
+  mutate(time_id = row_number(),
+         month = as.numeric(strftime(date, "%m")),
+         weekday = factor(strftime(date,'%A')),
          weekday_num = as.numeric(strftime(date,'%u')),
          holiday = case_when(date == "2020-01-01" ~ 1,
                              date == "2020-01-02" ~ 1,
@@ -110,7 +110,7 @@ miv_test <-  miv_2020 %>%
                                    date >= "2020-02-08" & date <= "2020-02-23" ~ 1,
                                     TRUE ~ 0),
          sqrt_flow = as.integer(sqrt(flow_daysum))) %>%
-  dplyr::select(date, weekday, weekday_num, month, flow_daysum, sqrt_flow, holiday, schoolholiday)
+  dplyr::select(time_id, date, weekday, weekday_num, month, flow_daysum, sqrt_flow, holiday, schoolholiday)
 
 ```
 
@@ -142,7 +142,7 @@ ggplot(miv_train_day, aes(date, flow_daysum)) +
             aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax), fill = "lightgreen", alpha=0.6) +
   geom_line() +
   geom_point(holiday_2019, mapping = aes(x = date, y = flow_daysum), color = "red") +
-  theme_stat() +
+  theme_classic() +
   labs(title = "Verkehrsaufkommen 2019",
        subtitle = "Messstelle Nr. 109, Tageswerte, Jan-Jun. 2019",
        caption = "Rote Punkte = Feiertage, Grün = Schulferien",
@@ -174,7 +174,7 @@ ggplot(miv_test, aes(date, flow_daysum)) +
             alpha = 0.6) +
   geom_line() +
   geom_point(holiday_2020, mapping = aes(x = date, y = flow_daysum), color = "red") +
-  theme_stat() +
+  theme_classic() +
   labs(title = "Verkehrsaufkommen 2020",
        subtitle = "Messstelle Nr. 109, Tageswerte, Jan-Feb. 2020",
        caption = "Rote Punkte = Feiertage, Grün = Schulferien",
@@ -220,19 +220,19 @@ According to correlation, most variation of the `flow_daysum` variable is explai
 
 ```{r, echo = FALSE, include=FALSE}
 
-col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
-
-miv_train_day.corr <- cor(miv_train_day[3:8])
+# col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+# 
+# miv_train_day.corr <- cor(miv_train_day[3:8])
 
 ```
 
 ```{r, echo=FALSE}
-corrplot::corrplot(miv_train_day.corr, method="color", col=col(200),  
-         type="upper", order="hclust", 
-         addCoef.col = "black", # Add coefficient of correlation
-         tl.col="black", tl.srt=45, #Text label color and rotation
-         # hide correlation coefficient on the principal diagonal
-         diag=FALSE )
+# corrplot::corrplot(miv_train_day.corr, method="color", col=col(200),  
+         # type="upper", order="hclust", 
+         # addCoef.col = "black", # Add coefficient of correlation
+         # tl.col="black", tl.srt=45, #Text label color and rotation
+         # # hide correlation coefficient on the principal diagonal
+         # diag=FALSE )
 ```
 
 # Build Linear Model
@@ -401,7 +401,7 @@ summary(gamMod_cs)
 plot(gamMod_cs)
 ```
 
-### Let’s see what the model diagnostics look like now:
+### Let’s see what the model diagnostics look now:
 ```{r, echo=FALSE}
 par(mfrow = c(2,2))
 mgcv::gam.check(gamMod_cs)
@@ -410,7 +410,7 @@ mgcv::gam.check(gamMod_cs)
 ## Cyclical smooth terms for all time components
 
 ```{r}
-gamMod_3 <- mgcv::gam(flow_daysum ~ s(month, bs = 'cc', k = 6) + s(weekday_num, bs = 'cc', k = 7) + holiday + schoolholiday, data = miv_train_day, method = "REML")
+gamMod_3 <- mgcv::gam(flow_daysum ~ s(month, bs = 'cc', k = 6) + s(weekday_num, bs = 'cc', k = 7) + holiday + schoolholiday, data = miv_train_day)
 ```
 
 ```{r, echo=FALSE}
@@ -426,7 +426,7 @@ par(mfrow = c(1,2))
 plot(gamMod_3)
 ```
 
-### Let’s see what the model diagnostics look like:
+### Let’s see what the model diagnostics look now:
 ```{r, echo=FALSE}
 par(mfrow = c(2,2))
 mgcv::gam.check(gamMod_3)
@@ -455,7 +455,7 @@ miv_pred_0 <- data.frame(time = miv_train_day$date,
 ggplot(miv_pred_0, aes(x = time)) +
   geom_line(aes(y = flow), alpha = 0.5, colour = "black") + 
   geom_line(aes(y = predicted_values_0), colour = "red") +
-  theme_stat() +
+  theme_classic() +
   labs(title = "Vorhersage mit linearMod2",
        subtitle = "Schwarze Linie = Messwerte, Rote Linie = Vorhersage",
        x = NULL,
@@ -478,7 +478,7 @@ ggplot(miv_pred, aes(x = time)) +
   geom_line(aes(y = predicted_values.fit), colour = "blue") +
   geom_line(aes(y = predicted_values.lwr), colour = "red", linetype = "dotted") +
   geom_line(aes(y = predicted_values.upr), colour = "red", linetype = "dotted") +
-  theme_stat() +
+  theme_classic() +
   labs(title = "Vorhersage mit linearMod2",
        subtitle = "Schwarze Linie = Messwerte, Blaue Linie = Vorhersage, Rote = Vertrauensintervall",
        x = NULL,
@@ -497,32 +497,64 @@ miv_pred_2 <- data.frame(time = miv_test$date,
 ggplot(miv_pred_2, aes(x = time)) +
   geom_line(aes(y = flow), alpha = 0.5, color = "black") + 
   geom_line(aes(y = predicted_values_2), colour = "red") +
-  theme_stat() +
+  theme_classic() +
   labs(title = "Vorhersage mit gamMod",
        subtitle = "Schwarze Linie = Messwerte, Rote Linie = Vorhersage",
        x = NULL,
        y = "Anzahl Fahrzeuge")
 ```
 
-# MAPE
+# Modellverbesserung
 
-### For the linear Model
+Changes:
 
-The mean absolute percent error (MAPE) of the linear regression model is 0.045 (4.5%) - a very good value.
-
+- Changed 'weekday' to be a factor variable and not use it as a cyclic smooth term in the model
+- Added a new variable to data frame 'time_id': Consecutively numbered days of the year
+- Adapted the model to be flow ~ time_id + weekyday + holiday + schoolholiday
+- Model as a GAM of the Poisson family 
 
 ```{r}
 
-MAPE(y_pred = miv_pred$predicted_values.fit, y_true = miv_test$flow_daysum)
+improved_mod <- mgcv::gam(flow_daysum ~ time_id + weekday + holiday + schoolholiday, data = miv_train_day, family=poisson)
 
 ```
 
+```{r, echo=FALSE}
+summary(improved_mod)
+```
 
-### For the GAM
+### The model diagnostics:
+
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+mgcv::gam.check(improved_mod)
+```
+
+
+## AIC - Goodness-of-fit
+
+```{r, echo=FALSE}
+AIC(linearMod, poissonMod, nbMod, gamMod, gamMod_cs, gamMod_3, improved_mod)
+```
+
+### Prediction for the improved Poisson Model
 
 ```{r}
-library(MLmetrics)
+miv_pred_999 <- data.frame(time = miv_test$time_id,
+                       flow = miv_test$flow_daysum,
+                       predicted_values = predict(improved_mod, newdata = miv_test))
 
-MAPE(y_pred = miv_pred_2$predicted_values_2, y_true = miv_test$flow_daysum)
-
+head(miv_pred_999)
 ```
+
+```{r, echo=FALSE}
+ggplot(miv_pred_999, aes(x = time)) +
+  geom_line(aes(y = flow), alpha = 0.5, colour = "black") + 
+  geom_line(aes(y = predicted_values), colour = "red") +
+  theme_classic() +
+  labs(title = "Vorhersage mit linearMod2",
+       subtitle = "Schwarze Linie = Messwerte, Rote Linie = Vorhersage",
+       x = NULL,
+       y = "Anzahl Fahrzeuge")
+```
+
